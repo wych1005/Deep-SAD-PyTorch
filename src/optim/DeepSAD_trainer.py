@@ -1,9 +1,10 @@
+import matplotlib.pyplot as plt
 from base.base_trainer import BaseTrainer
 from base.base_dataset import BaseADDataset
 from base.base_net import BaseNet
+import seaborn as sns
 from torch.utils.data.dataloader import DataLoader
-from sklearn.metrics import roc_auc_score
-
+from sklearn.metrics import roc_auc_score, confusion_matrix, average_precision_score, roc_curve, precision_recall_curve
 import logging
 import time
 import torch
@@ -29,12 +30,17 @@ class DeepSADTrainer(BaseTrainer):
         # Results
         self.train_time = None
         self.test_auc = None
+        self.test_auprc = None
+        self.test_confusion_matrix = None
         self.test_time = None
         self.test_scores = None
+        self.roc_x = None
+        self.roc_y = None
+        self.prec = None
+        self.rec = None
 
     def train(self, dataset: BaseADDataset, net: BaseNet):
         logger = logging.getLogger()
-
         # Get train data loader
         train_loader, _ = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
 
@@ -130,24 +136,67 @@ class DeepSADTrainer(BaseTrainer):
                 idx_label_score += list(zip(idx.cpu().data.numpy().tolist(),
                                             labels.cpu().data.numpy().tolist(),
                                             scores.cpu().data.numpy().tolist()))
-
                 epoch_loss += loss.item()
                 n_batches += 1
 
         self.test_time = time.time() - start_time
         self.test_scores = idx_label_score
-
+        score_array = np.array(self.test_scores, dtype=np.int32)
+        # Get predictions
+        prediction_array = np.array([int(abs(p - 1) < abs(p)) for p in list(score_array[:, 2])], dtype=np.int32)
+        gt_array = score_array[:, 1]
         # Compute AUC
         _, labels, scores = zip(*idx_label_score)
         labels = np.array(labels)
         scores = np.array(scores)
         self.test_auc = roc_auc_score(labels, scores)
+        self.test_auprc = average_precision_score(labels, scores)
+        self.roc_x, self.roc_y, _ = roc_curve(labels, scores)
+        self.prec, self.rec, _ = precision_recall_curve(labels, scores)
+
+        self.test_confusion_matrix = confusion_matrix(gt_array, prediction_array)
+        sns.heatmap(self.test_confusion_matrix, annot=True, fmt='.2%')
+        plt.savefig("cm_deepsad.png")
+        plt.close()
 
         # Log results
         logger.info('Test Loss: {:.6f}'.format(epoch_loss / n_batches))
-        logger.info('Test AUC: {:.2f}%'.format(100. * self.test_auc))
+        logger.info('Test AUROC: {:.2f}%'.format(100. * self.test_auc))
+        logger.info('Test AUPRC: {:.2f}%'.format(100. * self.test_auprc))
         logger.info('Test Time: {:.3f}s'.format(self.test_time))
         logger.info('Finished testing.')
+
+        ####### ROC and AUC ############
+        lw = 2
+        plt.figure()
+        ####### ROC ############
+        plt.plot(self.roc_x, self.roc_y, color='darkorange',
+                 lw=lw, label='ROC curve (AUC = %0.2f)' % self.test_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--', label="No-skill classifier")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate ')
+        plt.ylabel('True Positive Rate ')
+        plt.title('ROC (Receiver Operating Characteristic curve)')
+        plt.legend(loc="lower right")
+        plt.show()
+        plt.savefig('roc_auc.png')
+        plt.close()
+
+        ####### PR ############
+        plt.figure()
+        plt.plot(self.prec, self.rec, color='darkorange',
+                 lw=lw, label='PR curve (AUC = %0.2f)' % self.test_auprc)
+        plt.plot([0, 1], [0.0526, 0.0526], color='navy', lw=lw, linestyle='--', label="No-skill classifier")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('Recall ')
+        plt.ylabel('Precision ')
+        plt.title('PRC (Precision-Recall curve)')
+        plt.legend(loc="lower right")
+        plt.show()
+        plt.savefig('pr_auc.png')
+        plt.close()
 
     def init_center_c(self, train_loader: DataLoader, net: BaseNet, eps=0.1):
         """Initialize hypersphere center c as the mean from an initial forward pass on the data."""

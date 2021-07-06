@@ -3,7 +3,7 @@ import torch
 import logging
 import random
 import numpy as np
-
+import os
 from utils.config import Config
 from utils.visualization.plot_images_grid import plot_images_grid
 from DeepSAD import DeepSAD
@@ -15,12 +15,13 @@ from datasets.main import load_dataset
 ################################################################################
 @click.command()
 @click.argument('dataset_name', type=click.Choice(['mnist', 'fmnist', 'cifar10', 'arrhythmia', 'cardio', 'satellite',
-                                                   'satimage-2', 'shuttle', 'thyroid']))
+                                                   'satimage-2', 'shuttle', 'thyroid', 'ola', 'tiled32', 'tiled64']))
 @click.argument('net_name', type=click.Choice(['mnist_LeNet', 'fmnist_LeNet', 'cifar10_LeNet', 'arrhythmia_mlp',
                                                'cardio_mlp', 'satellite_mlp', 'satimage-2_mlp', 'shuttle_mlp',
-                                               'thyroid_mlp']))
-@click.argument('xp_path', type=click.Path(exists=True))
-@click.argument('data_path', type=click.Path(exists=True))
+                                               'thyroid_mlp', 'ola_mlp', 'tiled32_mlp', 'tiled64_mlp']))
+@click.argument('xp_path', type=click.Path())
+@click.argument('data_path', type=click.Path())
+@click.argument('modality', type=click.Choice(['ir', 'eo']))
 @click.option('--load_config', type=click.Path(exists=True), default=None,
               help='Config JSON-file path (default: None).')
 @click.option('--load_model', type=click.Path(exists=True), default=None,
@@ -69,7 +70,7 @@ from datasets.main import load_dataset
                    'If 0, no anomalies are known.'
                    'If 1, outlier class as specified in --known_outlier_class option.'
                    'If > 1, the specified number of outlier classes will be sampled at random.')
-def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, eta,
+def main(dataset_name, net_name, xp_path, modality, data_path, load_config, load_model, eta,
          ratio_known_normal, ratio_known_outlier, ratio_pollution, device, seed,
          optimizer_name, lr, n_epochs, lr_milestone, batch_size, weight_decay,
          pretrain, ae_optimizer_name, ae_lr, ae_n_epochs, ae_lr_milestone, ae_batch_size, ae_weight_decay,
@@ -85,12 +86,15 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, et
 
     # Get configuration
     cfg = Config(locals().copy())
-
+    if not os.path.exists(xp_path):
+        os.makedirs(xp_path)
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+
     log_file = xp_path + '/log.txt'
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
@@ -105,6 +109,7 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, et
     # Print experimental setup
     logger.info('Dataset: %s' % dataset_name)
     logger.info('Normal class: %d' % normal_class)
+    logger.info('Modality: %s' % modality)
     logger.info('Ratio of labeled normal train samples: %.2f' % ratio_known_normal)
     logger.info('Ratio of labeled anomalous samples: %.2f' % ratio_known_outlier)
     logger.info('Pollution ratio of unlabeled train data: %.2f' % ratio_pollution)
@@ -142,9 +147,8 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, et
     logger.info('Number of dataloader workers: %d' % n_jobs_dataloader)
 
     # Load data
-    dataset = load_dataset(dataset_name, data_path, normal_class, known_outlier_class, n_known_outlier_classes,
-                           ratio_known_normal, ratio_known_outlier, ratio_pollution,
-                           random_state=np.random.RandomState(cfg.settings['seed']))
+    dataset = load_dataset(dataset_name, data_path, modality, normal_class, known_outlier_class, n_known_outlier_classes,
+                           ratio_known_normal, ratio_known_outlier, ratio_pollution)
     # Log random sample of known anomaly classes if more than 1 class
     if n_known_outlier_classes > 1:
         logger.info('Known anomaly classes: %s' % (dataset.known_outlier_classes,))
