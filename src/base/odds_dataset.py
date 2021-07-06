@@ -60,7 +60,6 @@ class ODDSDataset(Dataset):
         X_test = np.concatenate((X_test_norm, X_test_out))
         y_train = np.concatenate((y_train_norm, y_train_out))
         y_test = np.concatenate((y_test_norm, y_test_out))
-
         # Standardize data (per feature Z-normalization, i.e. zero-mean and unit variance)
         scaler = StandardScaler().fit(X_train)
         X_train_stand = scaler.transform(X_train)

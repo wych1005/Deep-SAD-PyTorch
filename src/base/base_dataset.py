@@ -15,10 +15,10 @@ class BaseADDataset(ABC):
 
         self.train_set = None  # must be of type torch.utils.data.Dataset
         self.test_set = None  # must be of type torch.utils.data.Dataset
+        self.modality = None
 
     @abstractmethod
-    def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0) -> (
-            DataLoader, DataLoader):
+    def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0) -> (DataLoader, DataLoader):
         """Implement data loaders of type torch.utils.data.DataLoader for train_set and test_set."""
         pass
 
