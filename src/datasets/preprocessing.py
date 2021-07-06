@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 
-
 def create_semisupervised_setting(labels, normal_classes, outlier_classes, known_outlier_classes,
                                   ratio_known_normal, ratio_known_outlier, ratio_pollution):
     """

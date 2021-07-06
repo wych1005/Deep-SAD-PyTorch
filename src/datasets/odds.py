@@ -34,9 +34,11 @@ class ODDSADDataset(BaseADDataset):
 
         # Subset train_set to semi-supervised setup
         self.train_set = Subset(train_set, idx)
+        print("train set len: ", len(self.train_set))
 
         # Get test set
         self.test_set = ODDSDataset(root=self.root, dataset_name=dataset_name, train=False, random_state=random_state)
+        print("test set len: ", len(self.test_set))
 
     def loaders(self, batch_size: int, shuffle_train=True, shuffle_test=False, num_workers: int = 0) -> (
             DataLoader, DataLoader):
